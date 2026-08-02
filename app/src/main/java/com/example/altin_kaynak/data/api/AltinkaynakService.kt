@@ -17,7 +17,22 @@ class AltinkaynakService(private val client: OkHttpClient) {
     suspend fun getPrices(): List<GoldPrice> = withContext(Dispatchers.IO) {
         val goldDeferred = async { fetch(goldUrl) }
         val currencyDeferred = async { fetch(currencyUrl) }
-        goldDeferred.await() + currencyDeferred.await()
+        disambiguateNames(goldDeferred.await() + currencyDeferred.await())
+    }
+
+    // Altınkaynak API'sinde farklı kodlara sahip birden fazla kalem aynı ada
+    // sahip olabiliyor (ör. "GA" ve "PGA" ikisi de "Gram Altın"). Kullanıcının
+    // bunları karıştırıp yanlışlıkla ikisini de favoriye eklemesini önlemek için
+    // tekrar eden adların yanına kodu ekleyerek ayırt edilebilir hale getiriyoruz.
+    private fun disambiguateNames(prices: List<GoldPrice>): List<GoldPrice> {
+        val nameCounts = prices.groupingBy { it.name }.eachCount()
+        return prices.map { price ->
+            if ((nameCounts[price.name] ?: 0) > 1) {
+                price.copy(name = "${price.name} (${price.symbol})")
+            } else {
+                price
+            }
+        }
     }
 
     private fun fetch(url: String): List<GoldPrice> {
@@ -38,7 +53,7 @@ class AltinkaynakService(private val client: OkHttpClient) {
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val kod = obj.optString("Kod", "")
-                val aciklama = obj.optString("Aciklama", kod)
+                val aciklama = obj.optString("Aciklama", kod).trim()
                 val alis = parseTurkishNumber(obj.optString("Alis", "0"))
                 val satis = parseTurkishNumber(obj.optString("Satis", "0"))
                 if (kod.isNotEmpty()) {

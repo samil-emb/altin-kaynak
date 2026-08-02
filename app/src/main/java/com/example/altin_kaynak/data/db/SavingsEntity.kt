@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class SavingsEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val owner: String,
     val type: String,
     val quantity: Double,
     val note: String = "",

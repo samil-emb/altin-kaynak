@@ -1,10 +1,12 @@
 package com.example.altin_kaynak.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +25,7 @@ import java.util.Locale
 fun PricesScreen(viewModel: PricesViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val selectedSource by viewModel.selectedSource.collectAsState()
+    val favorites by viewModel.favorites.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -31,20 +34,6 @@ fun PricesScreen(viewModel: PricesViewModel = viewModel()) {
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(
-                onClick = { viewModel.selectSource(PriceSource.HAREM) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedSource == PriceSource.HAREM)
-                        MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = if (selectedSource == PriceSource.HAREM)
-                        MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSecondaryContainer
-                )
-            ) {
-                Text("Harem")
-            }
             Button(
                 onClick = { viewModel.selectSource(PriceSource.ALTINKAYNAK) },
                 modifier = Modifier.weight(1f),
@@ -58,6 +47,20 @@ fun PricesScreen(viewModel: PricesViewModel = viewModel()) {
                 )
             ) {
                 Text("Altınkaynak")
+            }
+            Button(
+                onClick = { viewModel.selectSource(PriceSource.HAREM) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selectedSource == PriceSource.HAREM)
+                        MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = if (selectedSource == PriceSource.HAREM)
+                        MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            ) {
+                Text("Harem")
             }
         }
 
@@ -87,13 +90,34 @@ fun PricesScreen(viewModel: PricesViewModel = viewModel()) {
                 }
             }
             is PricesState.Success -> {
+                val favoriteItems = remember(s.prices, favorites, selectedSource) {
+                    s.prices.filter { favorites.contains("${selectedSource.name}:${it.symbol}") }
+                }
+                val otherItems = remember(s.prices, favorites, selectedSource) {
+                    s.prices.filterNot { favorites.contains("${selectedSource.name}:${it.symbol}") }
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(s.prices) { price ->
-                        PriceCard(price = price)
+                    if (favoriteItems.isNotEmpty()) {
+                        item(key = "header_favorites") { SectionHeader("Favoriler") }
+                        items(favoriteItems, key = { "fav_${it.symbol}" }) { price ->
+                            PriceCard(
+                                price = price,
+                                isFavorite = true,
+                                onToggleFavorite = { viewModel.toggleFavorite(price.symbol) }
+                            )
+                        }
+                        item(key = "header_all") { SectionHeader("Tümü") }
+                    }
+                    items(otherItems, key = { it.symbol }) { price ->
+                        PriceCard(
+                            price = price,
+                            isFavorite = false,
+                            onToggleFavorite = { viewModel.toggleFavorite(price.symbol) }
+                        )
                     }
                 }
             }
@@ -102,7 +126,17 @@ fun PricesScreen(viewModel: PricesViewModel = viewModel()) {
 }
 
 @Composable
-fun PriceCard(price: GoldPrice) {
+fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+fun PriceCard(price: GoldPrice, isFavorite: Boolean = false, onToggleFavorite: () -> Unit = {}) {
     val formatter = remember {
         NumberFormat.getNumberInstance(Locale("tr", "TR")).apply {
             minimumFractionDigits = 2
@@ -121,6 +155,15 @@ fun PriceCard(price: GoldPrice) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = if (isFavorite) "Favorilerden çıkar" else "Favorilere ekle",
+                tint = if (isFavorite) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                modifier = Modifier
+                    .clickable(onClick = onToggleFavorite)
+                    .padding(end = 12.dp)
+            )
             Text(
                 text = price.name,
                 style = MaterialTheme.typography.bodyLarge,
